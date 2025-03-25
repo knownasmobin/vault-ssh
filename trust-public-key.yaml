@@ -1,0 +1,31 @@
+---
+- name: Configure target hosts with Vault SSH CA public key
+  hosts: all
+  become: yes
+  vars:
+    vault_public_key_url: "http://<vault-address>/v1/<ssh-engine-address>/public_key"
+    ca_key_dest: "/etc/ssh/trusted-user-ca-keys.pem"
+    sshd_config: "/etc/ssh/sshd_config"
+    ssh_service: "ssh"  # adjust to "sshd" if needed
+
+  tasks:
+    - name: Download Vault SSH CA public key
+      get_url:
+        url: "{{ vault_public_key_url }}"
+        dest: "{{ ca_key_dest }}"
+        mode: "0644"
+      notify: Restart SSH Service
+
+    - name: Ensure TrustedUserCAKeys directive is present in sshd_config
+      lineinfile:
+        path: "{{ sshd_config }}"
+        regexp: '^TrustedUserCAKeys'
+        line: "TrustedUserCAKeys {{ ca_key_dest }}"
+        state: present
+      notify: Restart SSH Service
+
+  handlers:
+    - name: Restart SSH Service
+      service:
+        name: "{{ ssh_service }}"
+        state: restarted
